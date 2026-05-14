@@ -1,0 +1,64 @@
+services:
+  stress:
+    # CNB 私有仓库地址格式：docker.cnb.cool/<组织或用户>/<仓库>[:<tag>]
+    # 通过环境变量覆盖镜像坐标，例如在项目根目录放一个 .env：
+    #   REGISTRY=docker.cnb.cool
+    #   REPO=clife/golang/stress
+    #   IMAGE_TAG=v0.1.0
+    # 然后：
+    #   docker compose build
+    #   docker compose push
+    image: ${REGISTRY:-docker.cnb.cool}/${REPO:-abber/i/stress}:${IMAGE_TAG:-v0.1.1}
+    container_name: stress
+
+    # 关键：让容器看到宿主机真实的 CPU / 内存使用情况。
+    # 程序读取的是 /proc/stat 和 /proc/meminfo —— 在容器里这两份文件
+    # 默认就是宿主机视角（cgroup v1/v2 都不会改写它们），所以无需挂载，
+    # 但必须不要给容器加 CPU / 内存上限，否则统计基准与可分配上限不一致，
+    # 程序会按宿主总量去申请内存而被 OOM kill。
+    #
+    # 如果你只想让本程序"占满整机的 80%"，保持下面默认即可。
+    # 如果你想限制本程序的爆炸半径（例如最多只能占用 12 GiB），
+    # 把 mem_limit 打开，并把启动参数里的 -target 调小到对应比例。
+
+    # mem_limit: 12g
+    # cpus: "8.0"
+
+    pid: host          # 让 /proc/self 与宿主 PID 命名空间一致，方便观察
+    network_mode: host # 不需要网络隔离；如不需要可删掉
+
+    restart: unless-stopped
+    stop_grace_period: 5s
+
+    # 业务参数通过环境变量传入（见 main.go 顶部的变量说明）。
+    environment:
+      STRESS_TARGET: "0.8"
+      STRESS_INTERVAL: "2s"
+      STRESS_CPU_PERIOD: "100ms"
+      STRESS_MEM_STEP: "0.05"
+      # STRESS_CPU_ONLY: "false"
+      # STRESS_MEM_ONLY: "false"
+      # STRESS_QUIET: "false"
+
+    # OOM 调节：宁可让别的进程先被 kill 也不优先 kill stress 自己。
+    # 如果你希望本程序在内存紧张时优先被 kill，设为 1000。
+    oom_score_adj: -500
+
+    # entrypoint.sh 需要 chown，所以不能 read_only: true
+    # read_only: true
+
+    # entrypoint.sh 需要 su-exec，需要 SETUID/SETGID cap
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

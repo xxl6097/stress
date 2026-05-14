@@ -1,0 +1,25 @@
+# Generated artifacts
+dist/
+*.b64
+
+# IDE
+.idea/
+.vscode/
+
+# Local env / secrets
+.env
+.env.*
+
+# Test logs and runtime files
+*.log
+stress.log
+report.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+*.test
+*.out
+coverage.*
